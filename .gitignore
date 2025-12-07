@@ -1,3 +1,4 @@
 node_modules/
 .env
 .env.local
+user_settings.json

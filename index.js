@@ -90,7 +90,7 @@ client.once('clientReady', async () => {
   // スラッシュコマンドを登録
   const commands = [
     new SlashCommandBuilder()
-      .setName('vxtwitter')
+      .setName('replace')
       .setDescription('Twitter/X URLの自動変換機能をON/OFFします')
       .addStringOption(option =>
         option
@@ -103,7 +103,7 @@ client.once('clientReady', async () => {
           )
       ),
     new SlashCommandBuilder()
-      .setName('vxtwitter-status')
+      .setName('status')
       .setDescription('現在の自動変換設定を確認します'),
   ].map(command => command.toJSON());
 

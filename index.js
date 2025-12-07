@@ -105,6 +105,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers, // ロール割り当てに必要
   ],
   partials: [Partials.Message, Partials.Channel],
 });
@@ -128,6 +129,44 @@ client.on('reconnecting', () => {
 
 client.on('shardResume', () => {
   console.log('✅ 接続が再開されました');
+});
+
+// Botがサーバーに参加した時の処理
+client.on('guildCreate', async (guild) => {
+  console.log(`🎉 新しいサーバーに参加しました: ${guild.name}`);
+  
+  try {
+    // Bot用のロールを作成
+    const botRoleName = 'X-URL-rewrite Bot';
+    
+    // 既存のロールをチェック
+    let botRole = guild.roles.cache.find(role => role.name === botRoleName);
+    
+    if (!botRole) {
+      // ロールを新規作成
+      botRole = await guild.roles.create({
+        name: botRoleName,
+        color: '#1DA1F2', // Twitterブルー
+        reason: 'X-URL-rewrite Bot 用のロール',
+        permissions: [
+          'SendMessages',
+          'ManageMessages', // embed削除用
+          'ReadMessageHistory',
+          'ViewChannel',
+        ],
+      });
+      console.log(`✅ ロールを作成しました: ${botRole.name}`);
+    }
+    
+    // Botにロールを割り当て
+    const botMember = guild.members.cache.get(client.user.id);
+    if (botMember && !botMember.roles.cache.has(botRole.id)) {
+      await botMember.roles.add(botRole);
+      console.log(`✅ Botにロールを割り当てました: ${botRole.name}`);
+    }
+  } catch (error) {
+    console.error(`❌ ロール作成/割り当てエラー (${guild.name}):`, error.message);
+  }
 });
 
 // Twitter/X URLを検出する正規表現

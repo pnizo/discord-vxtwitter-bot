@@ -1,49 +1,95 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
+const { Pool } = require('pg');
 
-// ユーザー設定を保存するファイルパス
-// Railway では /data にボリュームをマウントして永続化
-const DATA_DIR = process.env.DATA_DIR || __dirname;
-const DATA_FILE = path.join(DATA_DIR, 'user_settings.json');
+// PostgreSQL接続（Railway では DATABASE_URL が自動設定される）
+let pool = null;
+if (process.env.DATABASE_URL) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+  console.log('🗄️ PostgreSQL に接続します');
+}
 
-// データディレクトリが存在しない場合は作成
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// ユーザー設定をメモリにキャッシュ
+let userSettings = { enabledUsers: [] };
+
+/**
+ * データベースの初期化（テーブル作成）
+ */
+async function initDatabase() {
+  if (!pool) return;
+  
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_settings (
+        user_id VARCHAR(255) PRIMARY KEY,
+        enabled BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ データベーステーブルを初期化しました');
+    
+    // 既存のユーザー設定を読み込み
+    await loadUserSettings();
+  } catch (error) {
+    console.error('❌ データベース初期化エラー:', error);
+  }
 }
 
 /**
  * ユーザー設定を読み込む
- * @returns {Object} ユーザー設定オブジェクト
  */
-function loadUserSettings() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const data = fs.readFileSync(DATA_FILE, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error('設定ファイルの読み込みエラー:', error);
+async function loadUserSettings() {
+  if (!pool) {
+    console.log('⚠️ DATABASE_URL が設定されていません。メモリ内でのみ動作します。');
+    return;
   }
-  return { enabledUsers: [] };
+  
+  try {
+    const result = await pool.query('SELECT user_id FROM user_settings WHERE enabled = true');
+    userSettings.enabledUsers = result.rows.map(row => row.user_id);
+    console.log(`📋 ${userSettings.enabledUsers.length} 人のユーザー設定を読み込みました`);
+  } catch (error) {
+    console.error('設定の読み込みエラー:', error);
+  }
 }
 
 /**
  * ユーザー設定を保存する
- * @param {Object} settings ユーザー設定オブジェクト
+ * @param {string} userId ユーザーID
+ * @param {boolean} enabled 有効/無効
  */
-function saveUserSettings(settings) {
+async function saveUserSetting(userId, enabled) {
+  // メモリキャッシュを更新
+  const index = userSettings.enabledUsers.indexOf(userId);
+  if (enabled && index === -1) {
+    userSettings.enabledUsers.push(userId);
+  } else if (!enabled && index !== -1) {
+    userSettings.enabledUsers.splice(index, 1);
+  }
+  
+  // データベースに保存
+  if (!pool) return;
+  
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(settings, null, 2), 'utf8');
+    if (enabled) {
+      await pool.query(
+        'INSERT INTO user_settings (user_id, enabled) VALUES ($1, true) ON CONFLICT (user_id) DO UPDATE SET enabled = true',
+        [userId]
+      );
+    } else {
+      await pool.query(
+        'UPDATE user_settings SET enabled = false WHERE user_id = $1',
+        [userId]
+      );
+    }
   } catch (error) {
-    console.error('設定ファイルの保存エラー:', error);
+    console.error('設定の保存エラー:', error);
   }
 }
-
-// ユーザー設定を読み込み
-let userSettings = loadUserSettings();
 
 // ヘルスチェック用のHTTPサーバー（Railwayでコンテナを維持するため）
 const PORT = process.env.PORT || 3000;
@@ -108,6 +154,9 @@ function convertToVxTwitter(url) {
 client.once('clientReady', async () => {
   console.log(`✅ ログインしました: ${client.user.tag}`);
 
+  // データベースを初期化
+  await initDatabase();
+
   // スラッシュコマンドを登録
   const commands = [
     new SlashCommandBuilder()
@@ -151,24 +200,16 @@ client.on('interactionCreate', async (interaction) => {
   if (commandName === 'replace') {
     const setting = interaction.options.getString('setting');
     const isEnabled = setting === 'on';
-    const userIndex = userSettings.enabledUsers.indexOf(user.id);
+
+    // 設定を保存
+    await saveUserSetting(user.id, isEnabled);
 
     if (isEnabled) {
-      // ONにする
-      if (userIndex === -1) {
-        userSettings.enabledUsers.push(user.id);
-        saveUserSettings(userSettings);
-      }
       await interaction.reply({
         content: '✅ **Twitter/X URL自動変換を有効にしました！**\nあなたが投稿したTwitter/XのURLは自動的にvxTwitterに変換されます。',
         ephemeral: true, // 本人にのみ表示
       });
     } else {
-      // OFFにする
-      if (userIndex !== -1) {
-        userSettings.enabledUsers.splice(userIndex, 1);
-        saveUserSettings(userSettings);
-      }
       await interaction.reply({
         content: '❌ **Twitter/X URL自動変換を無効にしました。**\nあなたの投稿は変換されなくなります。',
         ephemeral: true,

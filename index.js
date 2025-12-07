@@ -127,7 +127,7 @@ client.on('interactionCreate', async (interaction) => {
 
   const { commandName, user } = interaction;
 
-  if (commandName === 'vxtwitter') {
+  if (commandName === 'replace') {
     const setting = interaction.options.getString('setting');
     const isEnabled = setting === 'on';
     const userIndex = userSettings.enabledUsers.indexOf(user.id);
@@ -157,12 +157,12 @@ client.on('interactionCreate', async (interaction) => {
     console.log(`⚙️ ユーザー ${user.tag} が自動変換を ${isEnabled ? 'ON' : 'OFF'} にしました`);
   }
 
-  if (commandName === 'vxtwitter-status') {
+  if (commandName === 'status') {
     const isEnabled = userSettings.enabledUsers.includes(user.id);
     await interaction.reply({
       content: isEnabled
-        ? '✅ **あなたの自動変換は現在 ON です。**\n`/vxtwitter` コマンドで変更できます。'
-        : '❌ **あなたの自動変換は現在 OFF です。**\n`/vxtwitter` コマンドで有効にできます。',
+        ? '✅ **あなたの自動変換は現在 ON です。**\n`/replace` コマンドで変更できます。'
+        : '❌ **あなたの自動変換は現在 OFF です。**\n`/replace` コマンドで有効にできます。',
       ephemeral: true,
     });
   }

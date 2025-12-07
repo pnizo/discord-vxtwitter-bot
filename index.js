@@ -55,23 +55,26 @@ client.on('messageCreate', async (message) => {
   if (!urls || urls.length === 0) return;
 
   try {
-    // 変換したURLを作成
-    const vxUrls = urls.map(url => convertToVxTwitter(url));
+    // 元のメッセージ内容を取得
+    const originalContent = message.content;
+    const author = message.author;
     
-    // 元のメッセージのembedを削除（メッセージの編集権限が必要）
-    // Botにはメッセージ編集権限がないため、suppressEmbedsを使用
-    if (message.suppressEmbeds) {
-      await message.suppressEmbeds(true);
-    }
-    
-    // 変換したURLを投稿
-    const replyContent = vxUrls.join('\n');
-    await message.reply({
-      content: replyContent,
-      allowedMentions: { repliedUser: false }, // 元の投稿者にメンションしない
+    // URLをvxTwitterに変換した新しいメッセージ内容を作成
+    let newContent = originalContent;
+    urls.forEach(url => {
+      const vxUrl = convertToVxTwitter(url);
+      newContent = newContent.replace(url, vxUrl);
     });
     
-    console.log(`🔄 URLを変換しました: ${urls.join(', ')} -> ${vxUrls.join(', ')}`);
+    // 元のメッセージを削除
+    await message.delete();
+    
+    // 元の投稿者の情報を含めて再投稿
+    await message.channel.send({
+      content: `**${author.displayName}**: ${newContent}`,
+    });
+    
+    console.log(`🔄 URLを変換しました: ${urls.join(', ')}`);
   } catch (error) {
     console.error('エラーが発生しました:', error);
   }

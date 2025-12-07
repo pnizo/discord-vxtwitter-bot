@@ -137,7 +137,7 @@ client.on('guildCreate', async (guild) => {
   
   try {
     // Bot用のロールを作成
-    const botRoleName = 'vxTwitter Bot';
+    const botRoleName = 'X-URL-rewrite Bot';
     
     // 既存のロールをチェック
     let botRole = guild.roles.cache.find(role => role.name === botRoleName);
@@ -147,7 +147,7 @@ client.on('guildCreate', async (guild) => {
       botRole = await guild.roles.create({
         name: botRoleName,
         color: '#1DA1F2', // Twitterブルー
-        reason: 'vxTwitter Bot 用のロール',
+        reason: 'X-URL-rewrite Bot 用のロール',
         permissions: [
           'SendMessages',
           'ManageMessages', // embed削除用

@@ -60,7 +60,28 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
   ],
-  partials: [Partials.Message],
+  partials: [Partials.Message, Partials.Channel],
+});
+
+// 再接続・エラーハンドリング
+client.on('error', (error) => {
+  console.error('❌ Discordクライアントエラー:', error);
+});
+
+client.on('warn', (warning) => {
+  console.warn('⚠️ 警告:', warning);
+});
+
+client.on('disconnect', () => {
+  console.log('🔌 Discord から切断されました。再接続を試みます...');
+});
+
+client.on('reconnecting', () => {
+  console.log('🔄 再接続中...');
+});
+
+client.on('shardResume', () => {
+  console.log('✅ 接続が再開されました');
 });
 
 // Twitter/X URLを検出する正規表現
@@ -172,13 +193,28 @@ client.on('messageCreate', async (message) => {
   // Bot自身のメッセージは無視
   if (message.author.bot) return;
 
-  // ユーザーが自動変換を有効にしているかチェック
-  if (!userSettings.enabledUsers.includes(message.author.id)) return;
+  // 部分的なメッセージの場合はフェッチ
+  if (message.partial) {
+    try {
+      message = await message.fetch();
+    } catch (error) {
+      console.error('メッセージのフェッチに失敗:', error);
+      return;
+    }
+  }
 
   // メッセージ内のTwitter/X URLを検索
   const urls = message.content.match(twitterUrlRegex);
   
   if (!urls || urls.length === 0) return;
+
+  // ユーザーが自動変換を有効にしているかチェック
+  if (!userSettings.enabledUsers.includes(message.author.id)) {
+    console.log(`⏭️ ユーザー ${message.author.tag} は自動変換が無効のためスキップ`);
+    return;
+  }
+
+  console.log(`📨 Twitter/X URLを検出: ${message.author.tag} - ${urls.join(', ')}`);
 
   try {
     // 変換したURLを作成
@@ -186,8 +222,10 @@ client.on('messageCreate', async (message) => {
     
     // 元のメッセージのembedを削除（メッセージの編集権限が必要）
     // Botにはメッセージ編集権限がないため、suppressEmbedsを使用
-    if (message.suppressEmbeds) {
+    try {
       await message.suppressEmbeds(true);
+    } catch (embedError) {
+      console.warn('⚠️ embed削除に失敗（権限不足の可能性）:', embedError.message);
     }
     
     // 変換したURLを投稿
@@ -197,9 +235,9 @@ client.on('messageCreate', async (message) => {
       allowedMentions: { repliedUser: false }, // 元の投稿者にメンションしない
     });
     
-    console.log(`🔄 URLを変換しました: ${urls.join(', ')} -> ${vxUrls.join(', ')}`);
+    console.log(`✅ URLを変換しました: ${urls.join(', ')} -> ${vxUrls.join(', ')}`);
   } catch (error) {
-    console.error('エラーが発生しました:', error);
+    console.error('❌ URL変換処理でエラー:', error);
   }
 });
 

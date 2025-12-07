@@ -31,7 +31,7 @@ function convertToVxTwitter(url) {
   return urlObj.toString();
 }
 
-client.once('ready', () => {
+client.once('clientReady', () => {
   console.log(`✅ ログインしました: ${client.user.tag}`);
 });
 

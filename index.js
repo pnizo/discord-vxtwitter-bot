@@ -1,5 +1,15 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const http = require('http');
+
+// ヘルスチェック用のHTTPサーバー（Railwayでコンテナを維持するため）
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Discord Bot is running!');
+}).listen(PORT, () => {
+  console.log(`🌐 ヘルスチェックサーバー起動: ポート ${PORT}`);
+});
 
 const client = new Client({
   intents: [
